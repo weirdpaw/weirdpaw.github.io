@@ -1,12 +1,252 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的个人网站</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>mindmap</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#f6f7f9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#1f2937}
+#viewport{position:fixed;inset:0;overflow:hidden;cursor:grab;background-color:#f6f7f9;background-image:radial-gradient(circle,#d7dce3 1px,transparent 1px);background-size:24px 24px;touch-action:none}
+#viewport.panning{cursor:grabbing}
+#world{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
+#edgeLayer{position:absolute;left:-100000px;top:-100000px;width:200000px;height:200000px;pointer-events:none;overflow:visible}
+.edge-path{fill:none;stroke:#b6bec9;stroke-width:2;stroke-linecap:round}
+.edge-arrow{stroke-width:0.5;stroke-linejoin:round;pointer-events:none}
+#nodeLayer{position:absolute;left:0;top:0;width:0;height:0}
+.node{position:absolute;min-height:44px;padding:10px 14px;background:#fff;border:1.5px solid var(--c,#d8dde3);border-radius:10px;box-shadow:0 1px 3px rgba(15,23,42,.07),0 1px 2px rgba(15,23,42,.04);font-size:14px;line-height:1.55;color:#1f2937;word-break:break-word;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text;z-index:1}
+.node-body{white-space:pre-wrap;min-height:22px}
+.node-body code{background:#f1f3f6;border:1px solid #e5e7eb;border-radius:4px;padding:0 4px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;color:#be185d}
+.node-body strong{color:#0f172a}
+.node-body mark{background:#fef08a;color:inherit;padding:0 3px;border-radius:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.node.group{padding:0;min-height:0;background:rgba(148,163,184,.08);border:1.5px dashed #94a3b8;box-shadow:none;border-radius:12px;z-index:0}
+.node.group .group-label{position:absolute;top:-28px;left:0;font-size:13px;font-weight:500;color:#475569;padding:3px 8px;background:rgba(255,255,255,.92);border:1px solid rgba(148,163,184,.35);border-radius:6px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.node.group .group-label:empty::before{content:"分组";color:#94a3b8}
+#zoomBadge{position:fixed;right:16px;bottom:14px;font-size:12px;color:#8b95a3;background:rgba(255,255,255,.85);padding:4px 10px;border-radius:8px;border:1px solid rgba(15,23,42,.07);user-select:none;z-index:90}
+#hint{position:fixed;left:16px;bottom:14px;font-size:12px;color:#8b95a3;user-select:none;pointer-events:none;z-index:90}
+#toolbar{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:100;display:flex;align-items:center;gap:3px;padding:6px 9px;background:rgba(255,255,255,.93);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(15,23,42,.09);border-radius:13px;box-shadow:0 6px 24px rgba(15,23,42,.1);font-size:13px;opacity:.6;transition:opacity .25s ease,box-shadow .25s ease}
+#toolbar:hover{opacity:1;box-shadow:0 8px 28px rgba(15,23,42,.14)}
+#toolbar.collapsed .title{max-width:0;padding:0;opacity:0}
+#toolbar .title{font-weight:600;color:#111827;padding:0 8px 0 4px;max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:max-width .25s ease,padding .25s ease,opacity .25s ease}
+#toolbar button{border:none;background:transparent;padding:6px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:#374151;font-family:inherit;white-space:nowrap;transition:background .12s}
+#toolbar button:hover{background:#f0f2f5}
+</style>
 </head>
 <body>
-    <h1>你好，世界！</h1>
-    <p>欢迎来到我的第一个个人网站。这里是使用 GitHub Pages 搭建的。</p>
+<div id="toolbar">
+<span class="title" title="双击折叠/展开">mindmap</span>
+<button id="btnFit">适应视图</button>
+<button id="btnReset">重置</button>
+</div>
+<div id="viewport">
+<div id="world">
+<svg id="edgeLayer" xmlns="http://www.w3.org/2000/svg"><g id="edgeGroup" transform="translate(100000,100000)"></g></svg>
+<div id="nodeLayer"></div>
+</div>
+</div>
+<div id="zoomBadge">100%</div>
+<div id="hint">滚轮缩放 · 拖拽平移 · 只读视图</div>
+<script>
+(function(){
+var DATA = {"nodes":[{"id":"nchlei","type":"text","x":0,"y":56,"width":190,"height":44,"text":"weirdpaw","color":"5"},{"id":"njcyvk","type":"text","x":280,"y":11,"width":190,"height":44,"text":"你好，世界！"},{"id":"nl88ck","type":"text","x":560,"y":0,"width":190,"height":65,"text":"欢迎来到我的第一个个人网站。"},{"id":"nnv27a","type":"text","x":280,"y":91,"width":190,"height":65,"text":"这里是使用 GitHub Pages 搭建的。"}],"edges":[{"id":"ekv8hq","fromNode":"nchlei","toNode":"njcyvk","fromSide":"right","toSide":"left"},{"id":"em9pjw","fromNode":"njcyvk","toNode":"nl88ck","fromSide":"right","toSide":"left"},{"id":"eopbf4","fromNode":"nchlei","toNode":"nnv27a","fromSide":"right","toSide":"left"}]};
+var COLORS = {'1':'#ef4444','2':'#f97316','3':'#eab308','4':'#22c55e','5':'#06b6d4','6':'#a855f7'};
+var TOOLBAR_TOP = 84;
+function colorOf(c){return c?(COLORS[c]||c):null}
+function hexA(hex,a){var h=hex.replace('#','');if(h.length===3)h=h.split('').map(function(c){return c+c}).join('');var n=parseInt(h,16);return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')'}
+function isHexColor(s){return typeof s==='string'&&/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(s)}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function renderMarkdown(text){
+  if(!text)return '';
+  var h=escHtml(text);
+  var stash=[];
+  function push(html){stash.push(html);return '\u0001'+(stash.length-1)+'\u0001'}
+  h=h.replace(/`([^`]+)`/g,function(m,p1){return push('<code>'+p1+'</code>')});
+  h=h.replace(/\*\*([^*\n]+)\*\*/g,function(m,p1){return push('<strong>'+p1+'</strong>')});
+  h=h.replace(/~~([^~\n]+)~~/g,function(m,p1){return push('<del>'+p1+'</del>')});
+  h=h.replace(/==([^=\n]+)==/g,function(m,p1){return push('<mark>'+p1+'</mark>')});
+  h=h.replace(/\*([^*\n]+)\*/g,function(m,p1){return push('<em>'+p1+'</em>')});
+  h=h.replace(/\u0001(\d+)\u0001/g,function(m,i){return stash[+i]});
+  h=h.replace(/^(#{1,3})\s+(.+)$/gm,function(m,hashes,c){var sz={1:'1.32em',2:'1.16em',3:'1.06em'}[hashes.length];return '<span style="font-size:'+sz+';font-weight:700;color:#0f172a">'+c+'</span>'});
+  h=h.replace(/^&gt;\s?(.*)$/gm,'<span style="color:#6b7280;border-left:3px solid #d1d5db;padding-left:8px">$1</span>');
+  h=h.replace(/^-\s+(.*)$/gm,'<span style="color:#9ca3af">•</span> $1');
+  return h;
+}
+var viewport=document.getElementById('viewport');
+var world=document.getElementById('world');
+var nodeLayer=document.getElementById('nodeLayer');
+var edgeGroup=document.getElementById('edgeGroup');
+var zoomBadge=document.getElementById('zoomBadge');
+var view={x:0,y:0,k:1};
+function anchor(n,side){
+  switch(side){
+    case 'left':return {x:n.x,y:n.y+n.height/2};
+    case 'top':return {x:n.x+n.width/2,y:n.y};
+    case 'bottom':return {x:n.x+n.width/2,y:n.y+n.height};
+    default:return {x:n.x+n.width,y:n.y+n.height/2};
+  }
+}
+function offsetPoint(p,side,d){
+  switch(side){
+    case 'left':return {x:p.x-d,y:p.y};
+    case 'top':return {x:p.x,y:p.y-d};
+    case 'bottom':return {x:p.x,y:p.y+d};
+    default:return {x:p.x+d,y:p.y};
+  }
+}
+function curveControlPoints(p1,s1,p2,s2){
+  var dist=Math.max(28,Math.hypot(p2.x-p1.x,p2.y-p1.y)*0.42);
+  return {c1:offsetPoint(p1,s1,dist),c2:offsetPoint(p2,s2,dist)};
+}
+function curvePath(p1,s1,p2,s2){
+  var c=curveControlPoints(p1,s1,p2,s2);
+  return 'M '+p1.x+' '+p1.y+' C '+c.c1.x+' '+c.c1.y+', '+c.c2.x+' '+c.c2.y+', '+p2.x+' '+p2.y;
+}
+function drawArrow(tip,control,color){
+  var size=11,halfAngle=0.42;
+  var angle=Math.atan2(tip.y-control.y,tip.x-control.x);
+  var la=angle+Math.PI-halfAngle,ra=angle+Math.PI+halfAngle;
+  var p2={x:tip.x+size*Math.cos(la),y:tip.y+size*Math.sin(la)};
+  var p3={x:tip.x+size*Math.cos(ra),y:tip.y+size*Math.sin(ra)};
+  var arrow=document.createElementNS('http://www.w3.org/2000/svg','path');
+  arrow.setAttribute('d','M '+tip.x+' '+tip.y+' L '+p2.x+' '+p2.y+' L '+p3.x+' '+p3.y+' Z');
+  arrow.setAttribute('class','edge-arrow');
+  arrow.setAttribute('fill',color||'#b6bec9');
+  arrow.setAttribute('stroke',color||'#b6bec9');
+  edgeGroup.appendChild(arrow);
+}
+function render(){
+  nodeLayer.innerHTML='';
+  while(edgeGroup.firstChild)edgeGroup.removeChild(edgeGroup.firstChild);
+  var map={};
+  DATA.nodes.forEach(function(n){map[n.id]=n});
+  var groups=[],texts=[];
+  DATA.nodes.forEach(function(n){
+    if(n.type==='group')groups.push(n);else texts.push(n);
+  });
+  groups.forEach(function(n){
+    var el=document.createElement('div');
+    el.className='node group';
+    el.style.left=n.x+'px';el.style.top=n.y+'px';
+    el.style.width=n.width+'px';el.style.height=n.height+'px';
+    if(isHexColor(n.background)){el.style.background=hexA(n.background,0.18)}
+    var c=colorOf(n.color);
+    if(c)el.style.borderColor=c;
+    var label=document.createElement('div');
+    label.className='group-label';
+    label.textContent=n.label||'';
+    el.appendChild(label);
+    nodeLayer.appendChild(el);
+  });
+  texts.forEach(function(n){
+    var el=document.createElement('div');
+    el.className='node';
+    el.style.left=n.x+'px';el.style.top=n.y+'px';el.style.width=n.width+'px';
+    var c=colorOf(n.color);
+    if(c){el.style.setProperty('--c',c);el.style.background=hexA(c,0.08)}
+    var body=document.createElement('div');
+    body.className='node-body';
+    body.innerHTML=renderMarkdown(n.text||'');
+    el.appendChild(body);
+    nodeLayer.appendChild(el);
+    var h=Math.max(44,el.offsetHeight);
+    if(Math.abs(h-n.height)>0.5)n.height=h;
+  });
+  DATA.edges.forEach(function(e){
+    var a=map[e.fromNode],b=map[e.toNode];
+    if(!a||!b)return;
+    var fs=e.fromSide||'right',ts=e.toSide||'left';
+    var p1=anchor(a,fs);
+    var p2=anchor(b,ts);
+    var cc=curveControlPoints(p1,fs,p2,ts);
+    var strokeColor=colorOf(e.color)||'#b6bec9';
+    var path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',curvePath(p1,fs,p2,ts));
+    path.setAttribute('class','edge-path');
+    if(colorOf(e.color))path.setAttribute('stroke',strokeColor);
+    edgeGroup.appendChild(path);
+    var toArrow=e.toEnd!=='none';
+    var fromArrow=e.fromEnd==='arrow';
+    if(toArrow)drawArrow(p2,cc.c2,strokeColor);
+    if(fromArrow)drawArrow(p1,cc.c1,strokeColor);
+    if(e.label){
+      var mid={x:(p1.x+p2.x)/2,y:(p1.y+p2.y)/2};
+      var t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',mid.x);t.setAttribute('y',mid.y-6);
+      t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-size','12');
+      t.setAttribute('fill','#6b7280');
+      t.setAttribute('font-family','sans-serif');
+      t.textContent=e.label;
+      edgeGroup.appendChild(t);
+    }
+  });
+}
+function updateTransform(){
+  world.style.transform='translate('+view.x+'px,'+view.y+'px) scale('+view.k+')';
+  viewport.style.backgroundPosition=view.x+'px '+view.y+'px';
+  viewport.style.backgroundSize=(24*view.k)+'px '+(24*view.k)+'px';
+  zoomBadge.textContent=Math.round(view.k*100)+'%';
+}
+function fitView(){
+  var vw=viewport.clientWidth,vh=viewport.clientHeight;
+  if(!DATA.nodes.length){view={x:vw/2,y:vh/2,k:1};updateTransform();return}
+  var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  DATA.nodes.forEach(function(n){
+    minX=Math.min(minX,n.x);minY=Math.min(minY,n.y);
+    maxX=Math.max(maxX,n.x+n.width);maxY=Math.max(maxY,n.y+n.height);
+  });
+  var padX=80,padTop=TOOLBAR_TOP,padBottom=70;
+  var availW=Math.max(1,vw-padX*2);
+  var availH=Math.max(1,vh-padTop-padBottom);
+  var w=Math.max(1,maxX-minX),h=Math.max(1,maxY-minY);
+  var k=Math.min(availW/w,availH/h);
+  k=Math.min(1.6,Math.max(0.15,k));
+  view.k=k;
+  view.x=padX+(availW-w*k)/2-minX*k;
+  view.y=padTop+(availH-h*k)/2-minY*k;
+  updateTransform();
+}
+var drag=null;
+viewport.addEventListener('pointerdown',function(e){
+  if(e.button!==0&&e.button!==1)return;
+  e.preventDefault();
+  drag={sx:e.clientX,sy:e.clientY,ox:view.x,oy:view.y};
+  viewport.classList.add('panning');
+});
+window.addEventListener('pointermove',function(e){
+  if(!drag)return;
+  view.x=drag.ox+(e.clientX-drag.sx);
+  view.y=drag.oy+(e.clientY-drag.sy);
+  updateTransform();
+});
+window.addEventListener('pointerup',function(){
+  drag=null;viewport.classList.remove('panning');
+});
+viewport.addEventListener('wheel',function(e){
+  e.preventDefault();
+  var r=viewport.getBoundingClientRect();
+  var mx=e.clientX-r.left,my=e.clientY-r.top;
+  var wx=(mx-view.x)/view.k,wy=(my-view.y)/view.k;
+  var factor=Math.exp(-e.deltaY*(e.deltaMode===1?0.05:0.0016));
+  view.k=Math.min(4,Math.max(0.15,view.k*factor));
+  view.x=mx-wx*view.k;view.y=my-wy*view.k;
+  updateTransform();
+},{passive:false});
+document.getElementById('btnFit').addEventListener('click',fitView);
+document.getElementById('btnReset').addEventListener('click',function(){
+  var vw=viewport.clientWidth,vh=viewport.clientHeight;
+  var cy=(TOOLBAR_TOP+(vh-70))/2;
+  view={x:vw/2-100,y:cy-40,k:1};
+  updateTransform();
+});
+var toolbar=document.getElementById('toolbar');
+toolbar.addEventListener('dblclick',function(e){
+  if(e.target.tagName!=='BUTTON')toolbar.classList.toggle('collapsed');
+});
+render();
+requestAnimationFrame(function(){render();fitView()});
+window.addEventListener('resize',updateTransform);
+})();
+</script>
 </body>
 </html>
